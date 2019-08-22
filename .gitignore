@@ -1,0 +1,9 @@
+__pycache__
+rcred.py
+cred
+data
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.csv
