@@ -14,12 +14,17 @@ import mysql.connector
 from sqlalchemy import create_engine
 
 # ====== Connection ====== #
-# Connecting to mysql by providing a sqlachemy engine
-sqlengine = create_engine('mysql+mysqlconnector://%s:%s@%s/%s'%(rcred.user,rcred.password,rcred.host,rcred.db), pool_recycle=3600)
+# Connecting to MySQL by providing a sqlachemy engine
+sqlengine = create_engine(
+    'mysql+mysqlconnector://{user}:{pw}@{host}/{db}'.format(user = rcred.user, 
+                                                            pw = rcred.password, 
+                                                            host = rcred.host, 
+                                                            db = rcred.db), 
+                                                            pool_recycle=3600)
 sqlconnect = sqlengine.connect()
 #%%
 # ====== Reading table ====== #
-# Reading Mysql table into a pandas DataFrame
+# Reading MySQL table into a pandas DataFrame
 sqltable = "bitstampUSD"
 df = pd.read_sql('SELECT * FROM {table}'.format(table = sqltable), sqlconnect)
 sqlconnect.close()
