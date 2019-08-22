@@ -5,7 +5,7 @@ scriptpath = os.path.join(basepath,'mysql','push')
 os.chdir(scriptpath)
 print(os.getcwd())
 
-credpath = os.path.join(scriptpath,"cred")
+credpath = os.path.join(scriptpath,'..',"cred")
 sys.path.append(credpath)
 import rcred
 
@@ -23,14 +23,18 @@ df.info()
 
 #%%
 from sqlalchemy import create_engine
-import pymysql
+import mysql.connector
 
+# ====== Connection ====== #
+# Connecting to mysql by providing a sqlachemy engine
+sqlengine = create_engine('mysql+mysqlconnector://{user}:{pw}@{host}/{db}'.format(user = rcred.user, pw = rcred.password, host = rcred.host, db = rcred.db), pool_recycle=3600)
+sqlconnect = sqlengine.connect()
+
+# ====== Create Table and push data ====== #
+# Creates table and pushing data to mysql given that table dont already exist
 tablename = datafile[0]
-sqlEngine = create_engine('mysql+pymysql://%s:%s@%s/%s'%(rcred.user,rcred.password,rcred.host,rcred.db), pool_recycle=3600)
-dbConnection = sqlEngine.connect()
-
 try:
-    frame = df.to_sql(tablename, dbConnection, if_exists='fail');
+    frame = df.to_sql(tablename, sqlconnect, if_exists='fail');
 except ValueError as vx:
     print(vx)
 except Exception as ex:   
@@ -38,7 +42,7 @@ except Exception as ex:
 else:
     print("Table %s created successfully."%tablename);   
 finally:
-    dbConnection.close()
+    sqlconnect.close()
 #%%
 
 #import MySQLdb
