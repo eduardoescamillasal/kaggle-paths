@@ -29,7 +29,7 @@ import mysql.connector
 # SQLAlchemy URI looks like this : 'mysql+mysqlconnector://user:password@host_ip:port/database'
 sqlengine = create_engine(
     'mysql+mysqlconnector://{user}:{pw}@{host}/{db}'.format(user = rcred.user, 
-                                                            pw = rcred.password, 
+                                                            pw = rcred.passwd, 
                                                             host = rcred.host, 
                                                             db = rcred.db), 
                                                             pool_recycle=3600)
