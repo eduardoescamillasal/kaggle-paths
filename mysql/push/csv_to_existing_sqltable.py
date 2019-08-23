@@ -21,10 +21,10 @@ df = pd.read_csv(infile)
 df.head()
 #%%
 from sqlalchemy import create_engine
-import mysql.connector
+import pymysql
 #%%
 sqlengine = create_engine(
-    'mysql+mysqlconnector://{user}:{pw}@{host}/{db}'.format(user = rcred.user, 
+    'mysql+pymysql://{user}:{pw}@{host}/{db}'.format(user = rcred.user, 
                                                             pw = rcred.passwd, 
                                                             host = rcred.host, 
                                                             db = rcred.db), 
