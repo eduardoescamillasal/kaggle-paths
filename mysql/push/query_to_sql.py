@@ -25,11 +25,13 @@ print(os.path.join(path, "data"))
 for file in os.listdir(os.path.join(path, "data")):
 	if fnmatch.fnmatch(file,'*.csv'):
 		print(file)
+		fileparts = file.split('.')
+		table = fileparts[0]
 		Query = """ LOAD DATA LOCAL INFILE 'data/%s' \
 		INTO TABLE %s \
 		FIELDS TERMINATED BY ';' \
 		LINES TERMINATED BY '\n' \
-		IGNORE 1 ROWS; """ % (file, file)
+		IGNORE 1 ROWS; """ % (file, table)
 		cursor.execute(Query) 
 		db.commit()
 cursor.close()
