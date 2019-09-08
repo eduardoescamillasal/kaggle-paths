@@ -9,6 +9,12 @@ file_url = 'http://archive.ics.uci.edu/ml/machine-learning-databases/00487/gas-s
 datapath = os.path.join(scriptdir,datadirname)
 
 def fetch_sensor_data(file_url=file_url, datapath=datapath):
+    """Download and extract sensordata to data path location
+    
+    Keyword Arguments:
+        file_url {string} -- Compressed sensor data file url (default: {file_url})
+        datapath {string} -- Data path location on disk (default: {datapath})
+    """
     import zipfile
     from six.moves import urllib
     if not os.path.isdir(datapath):
@@ -31,6 +37,14 @@ def fetch_sensor_data(file_url=file_url, datapath=datapath):
         print('csv files already exists in\n' + datapath + ',\nno files extracted')
 
 def collect_csvfiles(datapath=datapath):
+    """Find and match csv files in data directory
+    
+    Keyword Arguments:
+        datapath {string} -- Data path location on disk (default: {datapath})
+    
+    Returns:
+        [{string}] -- List of csv files located at data path location
+    """
     import fnmatch
     csvfiles = []; datasets = []
     for file in os.listdir(datapath):
@@ -39,45 +53,17 @@ def collect_csvfiles(datapath=datapath):
     csvfiles.sort()
     return csvfiles
 
-def read_csvfiles_with_timestamp(datapath=datapath):
-    import time
-    import numpy as np
-    import pandas as pd
-    start_time = time.time()
-    csvfiles = collect_csvfiles(datapath)
-    
-    datasets = []
-    for file in csvfiles:
-            filepath = os.path.join(datapath,file)
-            dataset = pd.read_csv(filepath)
-
-            timestamps = []
-            datetime = file.split('.csv')[0].split('_')
-            datetime_string = datetime[0] + ' - ' + datetime[1]
-            start_timestamp = pd.Timestamp(datetime_string)
-            (columns, units, colsind) = (metadata_list()[0], metadata_list()[1], metadata_list()[2])
-            
-            for time in dataset.iloc[:,0]:
-                timedelta = pd.Timedelta(seconds=time)
-                thistime = start_timestamp + timedelta
-                timestamps.append(thistime)
-            dataset.index = timestamps
-
-            dataset[colsind["HeaterState"]] = np.zeros(len(dataset), dtype='int64')
-            dataset[colsind["Ticks"]] = np.zeros(len(dataset), dtype='int64')
-            dataset[colsind["HeatingCycle"]] = np.zeros(len(dataset))
-            dataset[colsind["CycleLength"]] = np.zeros(len(dataset), dtype='int64')
-            dataset.columns = columns
-
-            datasets.append(dataset)
-            print(file + ' successfully imported')
-
-    elapsed_time = time.time() - start_time
-    print(' ')
-    print(str(len(csvfiles)) + ' Data has been loaded in ' + str(elapsed_time) + ' seconds')
-    return datasets
-
 def read_csvfiles(datapath=datapath, timeindex=False, validationset=False):
+    """Reading sensor data from csv
+    
+    Keyword Arguments:
+        datapath {string} -- CSV files location on disk (default: {datapath})
+        timeindex {bool} -- Toggle time index being used (default: {False})
+        validationset {bool} -- Includes the experimental validation sets (default: {False})
+    
+    Returns:
+        [pd.Dataframe] -- List of Pandas dataframes with experiment sensor data
+    """
     import time
     import numpy as np
     import pandas as pd
@@ -119,7 +105,7 @@ def read_csvfiles(datapath=datapath, timeindex=False, validationset=False):
     print(' ')
     if validationset == True:
         print(str(len(csvfiles)) + ' csv files has been loaded in ' + str(elapsed_time) + ' seconds'
-              + ' including validation sets')
+              + ' including validation sets with time index set to: ' + str(timeindex))
     else:
         print('Calibration set only has been loaded in ' + str(elapsed_time) + ' seconds with time index'
                + ' set to: ' + str(timeindex))
@@ -127,6 +113,15 @@ def read_csvfiles(datapath=datapath, timeindex=False, validationset=False):
     return datasets
 
 def metadata_list():
+    """Holds some case specific metadata
+    
+    Returns:
+        [objects] -- List of iterable metadata objects associated with the sensor data analytics framework
+        [objects][0] --> columns -- [{string}] -- List of column names for the analytics
+        [objects][1] --> units -- [{string}] -- List of units used in columns
+        [objects][2] --> colsind -- {{string: int}} -- Indexing directory for reverse column automation tasks
+        [objects][3] --> csv_files -- [{string}] -- List of sensordata csv-files in this project
+    """
     columns = ['Time', 'CO', 'Humidity', 'Temperature',
                'FlowRate', 'HeaterVoltage', 'R01', 'R02',
                'R03', 'R04', 'R05', 'R06', 'R07',
