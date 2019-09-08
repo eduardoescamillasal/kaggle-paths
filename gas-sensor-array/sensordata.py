@@ -1,4 +1,4 @@
-import sys, os
+import os
 
 datadirname = 'data'
 
@@ -54,7 +54,7 @@ def collect_csvfiles(datapath=datapath):
     return csvfiles
 
 def read_csvfiles(datapath=datapath, timeindex=False, validationset=False):
-    """Reading sensor data from csv
+    """Reading sensor data from csv and stores the data in memory.
     
     Keyword Arguments:
         datapath {string} -- CSV files location on disk (default: {datapath})
@@ -62,7 +62,7 @@ def read_csvfiles(datapath=datapath, timeindex=False, validationset=False):
         validationset {bool} -- Includes the experimental validation sets (default: {False})
     
     Returns:
-        [pd.Dataframe] -- List of Pandas dataframes with experiment sensor data
+        [pd.Dataframe] -- List of Pandas dataframes with experimental sensor data
     """
     import time
     import numpy as np
