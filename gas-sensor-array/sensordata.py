@@ -40,7 +40,10 @@ def collect_csvfiles(datapath=datapath):
     return csvfiles
 
 def read_csvfiles_with_timestamp(datapath=datapath):
+    import time
+    import numpy as np
     import pandas as pd
+    start_time = time.time()
     csvfiles = collect_csvfiles(datapath)
     
     datasets = []
@@ -52,36 +55,18 @@ def read_csvfiles_with_timestamp(datapath=datapath):
             datetime = file.split('.csv')[0].split('_')
             datetime_string = datetime[0] + ' - ' + datetime[1]
             start_timestamp = pd.Timestamp(datetime_string)
-            (columns, units, colsind) = (metadata[0], metadata[1], metadata[2])
+            (columns, units, colsind) = (metadata_list()[0], metadata_list()[1], metadata_list()[2])
+            
             for time in dataset.iloc[:,0]:
                 timedelta = pd.Timedelta(seconds=time)
                 thistime = start_timestamp + timedelta
                 timestamps.append(thistime)
             dataset.index = timestamps
-            dataset.columns = columns
 
-            datasets.append(dataset)
-    return datasets
-
-def read_csvfiles(datapath=datapath):
-    import time
-    import numpy as np
-    import pandas as pd
-    start_time = time.time()
-    csvfiles = collect_csvfiles(datapath)
-    
-    datasets = []
-    metadata = metadata_list()
-    (columns, units, colsind) = (metadata[0], metadata[1], metadata[2])
-    for file in csvfiles:
-            filepath = os.path.join(datapath,file)
-            dataset = pd.read_csv(filepath)
-            
             dataset[colsind["HeaterState"]] = np.zeros(len(dataset), dtype='int64')
             dataset[colsind["Ticks"]] = np.zeros(len(dataset), dtype='int64')
             dataset[colsind["HeatingCycle"]] = np.zeros(len(dataset))
             dataset[colsind["CycleLength"]] = np.zeros(len(dataset), dtype='int64')
-            
             dataset.columns = columns
 
             datasets.append(dataset)
@@ -90,6 +75,55 @@ def read_csvfiles(datapath=datapath):
     elapsed_time = time.time() - start_time
     print(' ')
     print(str(len(csvfiles)) + ' Data has been loaded in ' + str(elapsed_time) + ' seconds')
+    return datasets
+
+def read_csvfiles(datapath=datapath, timeindex=False, validationset=False):
+    import time
+    import numpy as np
+    import pandas as pd
+    start_time = time.time()
+    
+    datasets = []
+    metadata = metadata_list()
+    (columns, units, colsind) = (metadata[0], metadata[1], metadata[2])
+    csvfiles = collect_csvfiles(datapath)
+
+    for file in csvfiles:
+            filepath = os.path.join(datapath,file)
+            dataset = pd.read_csv(filepath)
+            
+            if timeindex == True:
+                timestamps = []
+                datetime = file.split('.csv')[0].split('_')
+                datetime_string = datetime[0] + ' - ' + datetime[1]
+                start_timestamp = pd.Timestamp(datetime_string)
+            
+                for timestamp in dataset.iloc[:,0]:
+                    timedelta = pd.Timedelta(seconds=timestamp)
+                    thistime = start_timestamp + timedelta
+                    timestamps.append(thistime)
+                dataset.index = timestamps
+
+            dataset[colsind["HeaterState"]] = np.zeros(len(dataset), dtype='int64')
+            dataset[colsind["Ticks"]] = np.zeros(len(dataset), dtype='int64')
+            dataset[colsind["HeatingCycle"]] = np.zeros(len(dataset))
+            dataset[colsind["CycleLength"]] = np.zeros(len(dataset), dtype='int64')
+            dataset.columns = columns
+
+            datasets.append(dataset)
+            print(file + ' successfully imported')
+            if validationset == False:
+                break
+
+    elapsed_time = time.time() - start_time
+    print(' ')
+    if validationset == True:
+        print(str(len(csvfiles)) + ' csv files has been loaded in ' + str(elapsed_time) + ' seconds'
+              + ' including validation sets')
+    else:
+        print('Calibration set only has been loaded in ' + str(elapsed_time) + ' seconds with time index'
+               + ' set to: ' + str(timeindex))
+    
     return datasets
 
 def metadata_list():
@@ -114,4 +148,3 @@ def metadata_list():
                  '20161011_113032.csv', '20161013_143355.csv', '20161014_184659.csv',
                  '20161016_053656.csv']
     return [columns, units, colsind, csv_files]
-
