@@ -1,4 +1,6 @@
 import os
+import numpy as np
+import pandas as pd
 
 datadirname = 'data'
 
@@ -65,8 +67,6 @@ def read_csvfiles(datapath=datapath, timeindex=False, validationset=False):
         [pd.Dataframe] -- List of Pandas dataframes with experimental sensor data
     """
     import time
-    import numpy as np
-    import pandas as pd
     start_time = time.time()
     
     datasets = []
@@ -77,7 +77,7 @@ def read_csvfiles(datapath=datapath, timeindex=False, validationset=False):
     for file in csvfiles:
             filepath = os.path.join(datapath,file)
             dataset = pd.read_csv(filepath)
-            
+            n = len(dataset)
             if timeindex == True:
                 timestamps = []
                 datetime = file.split('.csv')[0].split('_')
@@ -89,12 +89,8 @@ def read_csvfiles(datapath=datapath, timeindex=False, validationset=False):
                     thistime = start_timestamp + timedelta
                     timestamps.append(thistime)
                 dataset.index = timestamps
-
-            dataset[colsind["HeaterState"]] = np.zeros(len(dataset), dtype='int64')
-            dataset[colsind["Ticks"]] = np.zeros(len(dataset), dtype='int64')
-            dataset[colsind["HeatingCycle"]] = np.zeros(len(dataset))
-            dataset[colsind["CycleLength"]] = np.zeros(len(dataset), dtype='int64')
-            dataset.columns = columns
+            
+            dataset = featuregenerator(dataset)
 
             datasets.append(dataset)
             print(file + ' successfully imported')
@@ -111,6 +107,95 @@ def read_csvfiles(datapath=datapath, timeindex=False, validationset=False):
                + ' set to: ' + str(timeindex))
     
     return datasets
+
+def heaterstategenerator(dataset):
+    n = len(dataset)
+    colsind = metadata_list()[2]
+    col = colsind["HeaterVoltage"]
+    heaterstate = np.zeros(n, dtype='int64')
+    i = 0
+    for state in np.array((dataset.iloc[:,col] > 0.5)):
+        if state:
+            heaterstate[i] = 1
+        else:
+            heaterstate[i] = 0
+        i+=1
+    return heaterstate
+
+def ticksgenerator(dataset):
+    n = len(dataset)
+    ticks = np.zeros(n, dtype=int)
+    for i in range(n - 1):
+        thisvalue = dataset["HeaterState"][i]
+        nextvalue = dataset["HeaterState"][i+1]
+        if (thisvalue == 0) and (nextvalue == 1):
+            ticks[i] = 1
+    return ticks
+
+def cyclegenerator(dataset):
+    n = len(dataset)
+    colsind = metadata_list()[2]
+    col = colsind["Time"]
+    heatingcycle = np.zeros(n)
+    cyclelength = np.zeros(n, dtype='int64')
+    leavecycle = False
+    cycletracker = 1
+    i = 0
+    while i < n:
+        cycletracker = (cycletracker+1)%2
+        time = 5.0
+        if i == 0:
+            while dataset["Ticks"].iloc[i] == 0:
+                heatingcycle[i] = time
+                cyclelength[i] = 25
+                deltatime = dataset.iloc[i+1,col] - dataset.iloc[i,col]
+                time += deltatime
+                i+=1
+        
+        if dataset["Ticks"].iloc[i] == 1 or leavecycle == True:
+            if leavecycle == True:
+                i+= -1
+            if cycletracker == 0:
+                cyclelength[i] = 20
+            else:
+                cyclelength[i] = 25
+            leavecycle = False
+            time = 0.0
+            heatingcycle[i] = time
+            i+=1
+            while dataset["Ticks"].iloc[i] == 0:
+                deltatime = dataset.iloc[i,col] - dataset.iloc[i-1,col]
+                time += deltatime
+                if cycletracker == 0:
+                    cyclelength[i] = 20
+                    heatingcycle[i] = (time)
+                else:
+                    cyclelength[i] = 25
+                    heatingcycle[i] = (time)
+                
+                i+=1
+                leavecycle = True
+                if i == n:
+                    deltatime = dataset.iloc[i-1,col] - dataset.iloc[i-2,col]
+                    time += deltatime
+                    heatingcycle[i-1] = (time)%cyclelength[i-1]
+                    break
+        i+=1
+
+    return (heatingcycle, cyclelength)
+
+def featuregenerator(dataset):
+    columns = metadata_list()[0]
+    colsind = metadata_list()[2]
+
+    dataset["HeaterState"] = heaterstategenerator(dataset)
+    dataset["Ticks"] = ticksgenerator(dataset)
+    dataset["HeatingCycle"], dataset["CycleLength"] = cyclegenerator(dataset)
+
+    dataset.columns = metadata_list()[0]
+
+    return dataset
+
 
 def metadata_list():
     """Holds some case specific metadata
@@ -142,4 +227,5 @@ def metadata_list():
                  '20161007_210049.csv', '20161008_234508.csv', '20161010_095046.csv',
                  '20161011_113032.csv', '20161013_143355.csv', '20161014_184659.csv',
                  '20161016_053656.csv']
+
     return [columns, units, colsind, csv_files]
