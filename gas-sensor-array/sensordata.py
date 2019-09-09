@@ -227,5 +227,40 @@ def metadata_list():
                  '20161007_210049.csv', '20161008_234508.csv', '20161010_095046.csv',
                  '20161011_113032.csv', '20161013_143355.csv', '20161014_184659.csv',
                  '20161016_053656.csv']
-
+    
     return [columns, units, colsind, csv_files]
+
+def simpleplot(dep,
+               indep,
+               data,
+               columns,
+               units,
+               figsize = (10,7),
+               ylim = (0, 0),
+               xlim = (0, 0),
+               kind = 'plot'):
+    """
+    yeye- wowow
+    """
+    import matplotlib.pyplot as plt
+    if xlim != (0, 0):
+        x = data.iloc[xlim[0]:xlim[1],indep]
+        y = data.iloc[xlim[0]:xlim[1],dep]
+    elif ylim != (0,0):
+        x = data.iloc[ylim[0]:ylim[1],indep]
+        y = data.iloc[ylim[0]:ylim[1],dep]
+    else:
+        x = data.iloc[:,indep]
+        y = data.iloc[:,dep]
+    
+    fig, ax = plt.subplots(figsize=figsize)
+    if kind == 'scatter':
+        ax.plot(x,y, marker='.', linestyle='none')
+    else:
+        ax.plot(x,y, marker='.', linestyle='-')
+    
+    ax.set_title(columns[dep] + ' against ' + columns[indep])
+    ax.set_ylabel(columns[dep] + ' [' + units[dep] + ']', size=13)
+    ax.set_xlabel(columns[indep] + ' [' + units[indep] + ']', size=13)
+
+    return fig, ax
