@@ -239,8 +239,23 @@ def simpleplot(dep,
                ylim = (0, 0),
                xlim = (0, 0),
                kind = 'plot'):
-    """
-    yeye- wowow
+    """Just a simple plot
+    
+    Arguments:
+        dep {int} -- [description]
+        indep {int} -- [description]
+        data {array} -- [description]
+        columns {[string]} -- [description]
+        units {[string]} -- [description]
+    
+    Keyword Arguments:
+        figsize {tuple} -- [description] (default: {(10,7)})
+        ylim {tuple} -- [description] (default: {(0, 0)})
+        xlim {tuple} -- [description] (default: {(0, 0)})
+        kind {str} -- [description] (default: {'plot'})
+    
+    Returns:
+        [type] -- [description]
     """
     import matplotlib.pyplot as plt
     if xlim != (0, 0):
