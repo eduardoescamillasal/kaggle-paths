@@ -11,8 +11,10 @@ datasets = sensordata.read_csvfiles()
 metadata = sensordata.metadata_list()
 n = len(datasets[0])
 dataset = datasets[0]
+
 #%%
 dataset.iloc[60:70]
+
 #%%
 sns.set_style(style='whitegrid')
 fig, axes = plt.subplots(4,1, figsize=(17,12))

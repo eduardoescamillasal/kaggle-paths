@@ -137,17 +137,13 @@ def cyclegenerator(dataset):
     colsind = metadata_list()[2]
     col = colsind["Time"]
     heatingcycle = np.zeros(n)
-    cyclelength = np.zeros(n, dtype='int64')
     leavecycle = False
-    cycletracker = 1
     i = 0
     while i < n:
-        cycletracker = (cycletracker+1)%2
         time = 5.0
         if i == 0:
             while dataset["Ticks"].iloc[i] == 0:
                 heatingcycle[i] = time
-                cyclelength[i] = 25
                 deltatime = dataset.iloc[i+1,col] - dataset.iloc[i,col]
                 time += deltatime
                 i+=1
@@ -155,10 +151,6 @@ def cyclegenerator(dataset):
         if dataset["Ticks"].iloc[i] == 1 or leavecycle == True:
             if leavecycle == True:
                 i+= -1
-            if cycletracker == 0:
-                cyclelength[i] = 20
-            else:
-                cyclelength[i] = 25
             leavecycle = False
             time = 0.0
             heatingcycle[i] = time
@@ -166,31 +158,34 @@ def cyclegenerator(dataset):
             while dataset["Ticks"].iloc[i] == 0:
                 deltatime = dataset.iloc[i,col] - dataset.iloc[i-1,col]
                 time += deltatime
-                if cycletracker == 0:
-                    cyclelength[i] = 20
-                    heatingcycle[i] = (time)
-                else:
-                    cyclelength[i] = 25
-                    heatingcycle[i] = (time)
-                
+                heatingcycle[i] = (time)
+
                 i+=1
                 leavecycle = True
                 if i == n:
                     deltatime = dataset.iloc[i-1,col] - dataset.iloc[i-2,col]
                     time += deltatime
-                    heatingcycle[i-1] = (time)%cyclelength[i-1]
+                    heatingcycle[i-1] = (time)
                     break
         i+=1
 
-    return (heatingcycle, cyclelength)
+    return heatingcycle
 
 def featuregenerator(dataset):
+    """Adds feature columns to dataframe
+    
+    Arguments:
+        dataset {pd.DataFrame} -- Pandas dataframe with sensordata
+    
+    Returns:
+        pd.DataFrame -- New pandas dataframe with added columns
+    """
     columns = metadata_list()[0]
     colsind = metadata_list()[2]
 
     dataset["HeaterState"] = heaterstategenerator(dataset)
     dataset["Ticks"] = ticksgenerator(dataset)
-    dataset["HeatingCycle"], dataset["CycleLength"] = cyclegenerator(dataset)
+    dataset["HeatingCycle"] = cyclegenerator(dataset)
 
     dataset.columns = metadata_list()[0]
 
@@ -211,7 +206,7 @@ def metadata_list():
                'FlowRate', 'HeaterVoltage', 'R01', 'R02',
                'R03', 'R04', 'R05', 'R06', 'R07',
                'R08', 'R09', 'R10', 'R11', 'R12',
-               'R13', 'R14', 'HeaterState', 'Ticks', 'HeatingCycle', 'CycleLength']
+               'R13', 'R14', 'HeaterState', 'Ticks', 'HeatingCycle']
     units = ['s', 'ppm', '%.r.h', '°C', 'mL/min', 'V',
              'MOhm','MOhm', 'MOhm', 'MOhm', 'MOhm', 'MOhm', 'MOhm',
              'MOhm','MOhm', 'MOhm', 'MOhm', 'MOhm', 'MOhm', 'MOhm',
@@ -220,8 +215,7 @@ def metadata_list():
                'FlowRate': 4, 'HeaterVoltage': 5, 'R01': 6, 'R02': 7,
                'R03': 8, 'R04': 9, 'R05': 10, 'R06': 11, 'R07': 12,
                'R08': 13, 'R09': 14, 'R10': 15, 'R11': 16, 'R12': 17,
-               'R13': 18, 'R14': 19, 'HeaterState': 20, 'Ticks': 21, 'HeatingCycle': 22,
-               'CycleLength': 23}
+               'R13': 18, 'R14': 19, 'HeaterState': 20, 'Ticks': 21, 'HeatingCycle': 22}
     csv_files = ['20160930_203718.csv', '20161001_231809.csv', '20161003_085624.csv',
                  '20161004_104124.csv', '20161005_140846.csv', '20161006_182224.csv',
                  '20161007_210049.csv', '20161008_234508.csv', '20161010_095046.csv',
