@@ -12,6 +12,7 @@ scriptpath = os.path.abspath(__file__)
 scriptdir = os.path.dirname(scriptpath)
 datapath = os.path.join(scriptdir,datadirname)
 
+
 def fetch_sensor_data(datapath=datapath):
     """Download and extract sensordata to data path location
     
@@ -41,6 +42,7 @@ def fetch_sensor_data(datapath=datapath):
     else:
         print('csv files already exists in\n' + datapath + ',\nno files extracted')
 
+
 def collect_csvfiles(datapath=datapath):
     """Find and match csv files in data directory
     
@@ -61,25 +63,30 @@ def collect_csvfiles(datapath=datapath):
     csvfiles.sort()
     return csvfiles
 
-def read_csvfiles(datapath=datapath, timeindex=False, validationset=False, prepocess=False):
+
+def read_csvfiles(datapath=datapath, validationset=False, prepocess=False):
     """Reading sensor data from csv and stores the data in memory.
     
     Keyword Arguments:
         datapath {string} -- CSV files location on disk (default: {datapath})
-        timeindex {bool} -- Toggle time index being used (default: {False})
         validationset {bool} -- Includes the experimental validation sets (default: {False})
         prepocess {bool} -- Whether to preprocess feature data (default: {False})
     
     Returns:
         [pd.Dataframe] -- List of Pandas dataframes with experimental sensor data
-        features_sets
-        co_conc
+        or
+        [pd.Dataframe], [pd.Dataframe], numpy.array
+
+        [pd.Dataframe] -- List of Pandas dataframes with experimental sensor data
+        [pd.Dataframe] -- List of Pandas dataframes with preprocessed sensor features data
+        [numpy.array] -- List of numpy array with carbon monoxid target values for features data
     """
     import time
     start_time = time.time()
     
     datasets = []
     features_sets = []
+    co_conc_sets = []
     metadata = metadata_list()
     (columns, units, colsind) = (metadata[0], metadata[1], metadata[2])
     csvfiles = collect_csvfiles(datapath)
@@ -88,28 +95,16 @@ def read_csvfiles(datapath=datapath, timeindex=False, validationset=False, prepo
             filepath = os.path.join(datapath,file)
             dataset = pd.read_csv(filepath)
             n = len(dataset)
-
-            if timeindex == True:
-                timestamps = []
-                datetime = file.split('.csv')[0].split('_')
-                datetime_string = datetime[0] + ' - ' + datetime[1]
-                start_timestamp = pd.Timestamp(datetime_string)
-            
-                for timestamp in dataset.iloc[:,0]:
-                    timedelta = pd.Timedelta(seconds=timestamp)
-                    thistime = start_timestamp + timedelta
-                    timestamps.append(thistime)
-                dataset.index = timestamps
             
             if prepocess == True:
                 dataset, features, co_conc = featuregenerator(dataset, prepocess=True)
                 datasets.append(dataset)
                 features_sets.append(features)
+                co_conc_sets.append(co_conc)
             else:
                 dataset = featuregenerator(dataset)
                 datasets.append(dataset)
 
-            
             print(file + ' successfully imported')
             if validationset == False:
                 break
@@ -117,16 +112,43 @@ def read_csvfiles(datapath=datapath, timeindex=False, validationset=False, prepo
     elapsed_time = time.time() - start_time
     print(' ')
     if validationset == True:
-        print(str(len(csvfiles)) + ' csv files has been loaded in ' + str(elapsed_time) + ' seconds'
-              + ' including validation sets with time index set to: ' + str(timeindex))
+        print(str(len(csvfiles)) + ' csv files has been loaded in ' + str(elapsed_time) + ' seconds\n' \
+              + 'with preprocessing set to: ' + str(prepocess))
     else:
-        print('Calibration set only has been loaded in ' + str(elapsed_time) + ' seconds with time index'
-               + ' set to: ' + str(timeindex))
+        print('Calibration set only has been loaded in ' + str(elapsed_time) + ' seconds\n with preprocessing' \
+               + 'set to: ' + str(prepocess))
     
     if prepocess == True:
-        return datasets, features_sets, co_conc
+        return datasets, features_sets, co_conc_sets
     else:
         return datasets
+
+
+def featuregenerator(dataset, prepocess=False):
+    """Adds feature columns to dataframe
+    
+    Arguments:
+        dataset {pd.DataFrame} -- Pandas dataframe with sensordata
+
+    Keyword Arguments:
+        prepocess {bool} -- Whether to preprocess feature data (default: {False})
+    
+    Returns:
+        pd.DataFrame -- New pandas dataframe with added columns
+    """
+
+    if prepocess == True:
+        heatingcycle, signals, co_cons = cyclemanager(dataset, prepocess)
+        dataset["HeatingCycle"] = heatingcycle
+        features = np.array(pd.DataFrame(signals))
+        dataset.columns = metadata_list()[0]
+        return dataset, features, co_cons
+    else:
+        heatingcycle = cyclemanager(dataset, prepocess)
+        dataset["HeatingCycle"] = heatingcycle
+        dataset.columns = metadata_list()[0]
+        return dataset
+
 
 def cyclemanager(dataset, prepocess=False):
     """Handles periodic pattern extraction due to heater modulaton, collecting
@@ -197,31 +219,6 @@ def cyclemanager(dataset, prepocess=False):
         return heatingcycle, signals, co_cons
     else:
         return heatingcycle
-
-def featuregenerator(dataset, prepocess=False):
-    """Adds feature columns to dataframe
-    
-    Arguments:
-        dataset {pd.DataFrame} -- Pandas dataframe with sensordata
-
-    Keyword Arguments:
-        prepocess {bool} -- Whether to preprocess feature data (default: {False})
-    
-    Returns:
-        pd.DataFrame -- New pandas dataframe with added columns
-    """
-
-    if prepocess == True:
-        heatingcycle, signals, co_cons = cyclemanager(dataset, prepocess)
-        dataset["HeatingCycle"] = heatingcycle
-        features = np.array(pd.DataFrame(signals))
-        dataset.columns = metadata_list()[0]
-        return dataset, features, co_cons
-    else:
-        heatingcycle = cyclemanager(dataset, prepocess)
-        dataset["HeatingCycle"] = heatingcycle
-        dataset.columns = metadata_list()[0]
-        return dataset
 
 def metadata_list():
     """Holds some case specific metadata
