@@ -117,11 +117,13 @@ def read_csvfiles(datapath=datapath, timeindex=False, validationset=False, prepo
     else:
         return datasets
 
-def cyclegenerator(dataset, prepocess=False):
+def cyclemanager(dataset, prepocess=False):
     n = len(dataset)
     colsind = metadata_list()[2]
     timecol = colsind["Time"]
     heatcol = colsind["HeaterVoltage"]
+    signalfilter = (dataset.iloc[:,heatcol] < 0.25) 
+    signalset = dataset[signalfilter]
     
     heatingcycle = np.zeros(n, dtype=float)
     time = 5.0
@@ -149,6 +151,7 @@ def cyclegenerator(dataset, prepocess=False):
 
             if prepocess == True:
                 cycle = np.append(cycle, sensorsignals, axis=0)
+                cycle = cycle[20:65] # Euqal part log transform linear signal range
                 dims = cycle.shape[0]*cycle.shape[1]
                 co_cycle.append(dataset.iloc[i,carbcol])
                 signals.append(np.log10(1/cycle.reshape(dims)))
@@ -176,13 +179,13 @@ def featuregenerator(dataset, prepocess=False):
     """
 
     if prepocess == True:
-        heatingcycle, signals, co_cons = cyclegenerator(dataset, prepocess)
+        heatingcycle, signals, co_cons = cyclemanager(dataset, prepocess)
         dataset["HeatingCycle"] = heatingcycle
         features = np.array(pd.DataFrame(signals))
         dataset.columns = metadata_list()[0]
         return dataset, features, co_cons
     else:
-        heatingcycle = cyclegenerator(dataset, prepocess)
+        heatingcycle = cyclemanager(dataset, prepocess)
         dataset["HeatingCycle"] = heatingcycle
         dataset.columns = metadata_list()[0]
         return dataset
