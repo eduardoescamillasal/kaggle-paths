@@ -3,14 +3,11 @@ import numpy as np
 import pandas as pd
 
 datadirname = 'data'
-
 scriptpath = os.path.abspath(__file__)
 scriptdir = os.path.dirname(scriptpath)
-
-file_url = 'http://archive.ics.uci.edu/ml/machine-learning-databases/00487/gas-sensor-array-temperature-modulation.zip'
 datapath = os.path.join(scriptdir,datadirname)
 
-def fetch_sensor_data(file_url=file_url, datapath=datapath):
+def fetch_sensor_data(datapath=datapath):
     """Download and extract sensordata to data path location
     
     Keyword Arguments:
@@ -19,6 +16,8 @@ def fetch_sensor_data(file_url=file_url, datapath=datapath):
     """
     import zipfile
     from six.moves import urllib
+    file_url = 'http://archive.ics.uci.edu/ml/machine-learning-databases/00487/gas-sensor-array-temperature-modulation.zip'
+
     if not os.path.isdir(datapath):
         os.makedirs("data")
     file_path = os.path.join(datapath, "gas-sensor-data.zip")
@@ -47,21 +46,25 @@ def collect_csvfiles(datapath=datapath):
     Returns:
         [{string}] -- List of csv files located at data path location
     """
+
     import fnmatch
-    csvfiles = []; datasets = []
+
+    csvfiles = []
+    datasets = []
     for file in os.listdir(datapath):
         if fnmatch.fnmatch(file,'*.csv'):
             csvfiles.append(file)
     csvfiles.sort()
     return csvfiles
 
-def read_csvfiles(datapath=datapath, timeindex=False, validationset=False):
+def read_csvfiles(datapath=datapath, timeindex=False, validationset=False, prepocess=False):
     """Reading sensor data from csv and stores the data in memory.
     
     Keyword Arguments:
         datapath {string} -- CSV files location on disk (default: {datapath})
         timeindex {bool} -- Toggle time index being used (default: {False})
         validationset {bool} -- Includes the experimental validation sets (default: {False})
+        prepocess {bool} -- Whether to preprocess feature data
     
     Returns:
         [pd.Dataframe] -- List of Pandas dataframes with experimental sensor data
@@ -90,7 +93,10 @@ def read_csvfiles(datapath=datapath, timeindex=False, validationset=False):
                     timestamps.append(thistime)
                 dataset.index = timestamps
             
-            dataset = featuregenerator(dataset)
+            if prepocess == True:
+                dataset, features, co_conc = featuregenerator(dataset, prepocess=True)
+            else:
+                dataset = featuregenerator(dataset)
 
             datasets.append(dataset)
             print(file + ' successfully imported')
@@ -106,72 +112,60 @@ def read_csvfiles(datapath=datapath, timeindex=False, validationset=False):
         print('Calibration set only has been loaded in ' + str(elapsed_time) + ' seconds with time index'
                + ' set to: ' + str(timeindex))
     
-    return datasets
+    if prepocess == True:
+        return datasets, features, co_conc
+    else:
+        return datasets
 
-def heaterstategenerator(dataset):
+def cyclegenerator(dataset, prepocess=False):
     n = len(dataset)
     colsind = metadata_list()[2]
-    col = colsind["HeaterVoltage"]
-    heaterstate = np.zeros(n, dtype='int64')
-    i = 0
-    for state in np.array((dataset.iloc[:,col] > 0.5)):
-        if state:
-            heaterstate[i] = 1
-        else:
-            heaterstate[i] = 0
-        i+=1
-    return heaterstate
+    timecol = colsind["Time"]
+    heatcol = colsind["HeaterVoltage"]
+    
+    heatingcycle = np.zeros(n, dtype=float)
+    time = 5.0
 
-def ticksgenerator(dataset):
-    n = len(dataset)
-    ticks = np.zeros(n, dtype=int)
+    if prepocess == True:
+        carbcol = colsind["CO"]
+        cycle = arr = np.empty((0,7), float)
+        co_cycle = []
+        co_cons = []
+        signals = []
+
     for i in range(n - 1):
-        thisvalue = dataset["HeaterState"][i]
-        nextvalue = dataset["HeaterState"][i+1]
-        if (thisvalue == 0) and (nextvalue == 1):
-            ticks[i] = 1
-    return ticks
+        heatingcycle[i] = time
+        deltatime = dataset.iloc[i+1,timecol] - dataset.iloc[i,timecol]
+        time += deltatime
 
-def cyclegenerator(dataset):
-    n = len(dataset)
-    colsind = metadata_list()[2]
-    col = colsind["Time"]
-    heatingcycle = np.zeros(n)
-    leavecycle = False
-    i = 0
-    while i < n:
-        time = 5.0
-        if i == 0:
-            while dataset["Ticks"].iloc[i] == 0:
-                heatingcycle[i] = time
-                deltatime = dataset.iloc[i+1,col] - dataset.iloc[i,col]
-                time += deltatime
-                i+=1
-        
-        if dataset["Ticks"].iloc[i] == 1 or leavecycle == True:
-            if leavecycle == True:
-                i+= -1
-            leavecycle = False
-            time = 0.0
+        if prepocess == True:
+            sensorsignals = np.array(dataset.iloc[i,6:13]).reshape(1,7) #Figaro sensors
+            cycle = np.append(cycle, sensorsignals, axis=0)
+            co_cycle.append(dataset.iloc[i,carbcol])
+
+        thisvalue = dataset.iloc[i,heatcol]
+        nextvalue = dataset.iloc[i+1,heatcol]
+        if (thisvalue < 0.5) and (nextvalue >= 0.5):
+
+            if prepocess == True:
+                cycle = np.append(cycle, sensorsignals, axis=0)
+                dims = cycle.shape[0]*cycle.shape[1]
+                co_cycle.append(dataset.iloc[i,carbcol])
+                signals.append(np.log10(1/cycle.reshape(dims)))
+                co_cons.append(np.mean(co_cycle))
+                co_cycle = []
+                cycle = arr = np.empty((0,7), float)
+            
+            time=0.0
             heatingcycle[i] = time
-            i+=1
-            while dataset["Ticks"].iloc[i] == 0:
-                deltatime = dataset.iloc[i,col] - dataset.iloc[i-1,col]
-                time += deltatime
-                heatingcycle[i] = (time)
+            deltatime = dataset.iloc[i+1,timecol] - dataset.iloc[i,timecol]
+            time += deltatime
+    if prepocess == True:
+        return heatingcycle, signals, co_cons
+    else:
+        return heatingcycle
 
-                i+=1
-                leavecycle = True
-                if i == n:
-                    deltatime = dataset.iloc[i-1,col] - dataset.iloc[i-2,col]
-                    time += deltatime
-                    heatingcycle[i-1] = (time)
-                    break
-        i+=1
-
-    return heatingcycle
-
-def featuregenerator(dataset):
+def featuregenerator(dataset, prepocess=False):
     """Adds feature columns to dataframe
     
     Arguments:
@@ -180,17 +174,18 @@ def featuregenerator(dataset):
     Returns:
         pd.DataFrame -- New pandas dataframe with added columns
     """
-    columns = metadata_list()[0]
-    colsind = metadata_list()[2]
 
-    dataset["HeaterState"] = heaterstategenerator(dataset)
-    dataset["Ticks"] = ticksgenerator(dataset)
-    dataset["HeatingCycle"] = cyclegenerator(dataset)
-
-    dataset.columns = metadata_list()[0]
-
-    return dataset
-
+    if prepocess == True:
+        heatingcycle, signals, co_cons = cyclegenerator(dataset, prepocess)
+        dataset["HeatingCycle"] = heatingcycle
+        features = np.array(pd.DataFrame(signals))
+        dataset.columns = metadata_list()[0]
+        return dataset, features, co_cons
+    else:
+        heatingcycle = cyclegenerator(dataset, prepocess)
+        dataset["HeatingCycle"] = heatingcycle
+        dataset.columns = metadata_list()[0]
+        return dataset
 
 def metadata_list():
     """Holds some case specific metadata
@@ -206,16 +201,16 @@ def metadata_list():
                'FlowRate', 'HeaterVoltage', 'R01', 'R02',
                'R03', 'R04', 'R05', 'R06', 'R07',
                'R08', 'R09', 'R10', 'R11', 'R12',
-               'R13', 'R14', 'HeaterState', 'Ticks', 'HeatingCycle']
+               'R13', 'R14', 'HeatingCycle']
     units = ['s', 'ppm', '%.r.h', '°C', 'mL/min', 'V',
-             'MOhm','MOhm', 'MOhm', 'MOhm', 'MOhm', 'MOhm', 'MOhm',
-             'MOhm','MOhm', 'MOhm', 'MOhm', 'MOhm', 'MOhm', 'MOhm',
-             'Boolean', 'Boolean', 's', 's']
+             'MOhm','MOhm', 'MOhm', 'MOhm',
+             'MOhm', 'MOhm', 'MOhm', 'MOhm','MOhm',
+             'MOhm', 'MOhm', 'MOhm', 'MOhm', 'MOhm', 's']
     colsind = {'Time': 0, 'CO': 1, 'Humidity': 2, 'Temperature': 3,
                'FlowRate': 4, 'HeaterVoltage': 5, 'R01': 6, 'R02': 7,
                'R03': 8, 'R04': 9, 'R05': 10, 'R06': 11, 'R07': 12,
                'R08': 13, 'R09': 14, 'R10': 15, 'R11': 16, 'R12': 17,
-               'R13': 18, 'R14': 19, 'HeaterState': 20, 'Ticks': 21, 'HeatingCycle': 22}
+               'R13': 18, 'R14': 19, 'HeatingCycle': 21}
     csv_files = ['20160930_203718.csv', '20161001_231809.csv', '20161003_085624.csv',
                  '20161004_104124.csv', '20161005_140846.csv', '20161006_182224.csv',
                  '20161007_210049.csv', '20161008_234508.csv', '20161010_095046.csv',
@@ -223,53 +218,3 @@ def metadata_list():
                  '20161016_053656.csv']
     
     return [columns, units, colsind, csv_files]
-
-def simpleplot(dep,
-               indep,
-               data,
-               columns,
-               units,
-               figsize = (10,7),
-               ylim = (0, 0),
-               xlim = (0, 0),
-               kind = 'plot'):
-    """Just a simple plot
-    
-    Arguments:
-        dep {int} -- [description]
-        indep {int} -- [description]
-        data {array} -- [description]
-        columns {[string]} -- [description]
-        units {[string]} -- [description]
-    
-    Keyword Arguments:
-        figsize {tuple} -- [description] (default: {(10,7)})
-        ylim {tuple} -- [description] (default: {(0, 0)})
-        xlim {tuple} -- [description] (default: {(0, 0)})
-        kind {str} -- [description] (default: {'plot'})
-    
-    Returns:
-        [type] -- [description]
-    """
-    import matplotlib.pyplot as plt
-    if xlim != (0, 0):
-        x = data.iloc[xlim[0]:xlim[1],indep]
-        y = data.iloc[xlim[0]:xlim[1],dep]
-    elif ylim != (0,0):
-        x = data.iloc[ylim[0]:ylim[1],indep]
-        y = data.iloc[ylim[0]:ylim[1],dep]
-    else:
-        x = data.iloc[:,indep]
-        y = data.iloc[:,dep]
-    
-    fig, ax = plt.subplots(figsize=figsize)
-    if kind == 'scatter':
-        ax.plot(x,y, marker='.', linestyle='none')
-    else:
-        ax.plot(x,y, marker='.', linestyle='-')
-    
-    ax.set_title(columns[dep] + ' against ' + columns[indep])
-    ax.set_ylabel(columns[dep] + ' [' + units[dep] + ']', size=13)
-    ax.set_xlabel(columns[indep] + ' [' + units[indep] + ']', size=13)
-
-    return fig, ax

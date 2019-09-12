@@ -4,8 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import sensordata
-sns.set()
-
+sns.set_style(style='whitegrid')
 sensordata.fetch_sensor_data()
 datasets = sensordata.read_csvfiles()
 metadata = sensordata.metadata_list()
@@ -13,7 +12,20 @@ n = len(datasets[0])
 dataset = datasets[0]
 
 #%%
-dataset.iloc[60:70]
+n = len(dataset)
+ticks = np.zeros(n, dtype=int)
+for i in range(n - 1):
+    thisvalue = dataset["HeaterVoltage"][i]
+    nextvalue = dataset["HeaterVoltage"][i+1]
+    if (thisvalue >= 0.5) and (nextvalue < 0.5):
+        ticks[i] = 1
+
+
+#%%
+len(dataset)/25
+
+#%%
+dataset.iloc[80:90]
 
 #%%
 sns.set_style(style='whitegrid')
