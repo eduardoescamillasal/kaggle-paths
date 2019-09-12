@@ -20,22 +20,20 @@ for i in range(n - 1):
     if (thisvalue >= 0.5) and (nextvalue < 0.5):
         ticks[i] = 1
 
-
 #%%
 len(dataset)/25
 
 #%%
 dataset.iloc[80:90]
+dataset.head()
 
 #%%
 sns.set_style(style='whitegrid')
 fig, axes = plt.subplots(4,1, figsize=(17,12))
 start = 0
 stop = start + 500
-sns.scatterplot(x=dataset.Time[start:stop], y=dataset.HeaterState[start:stop], ax=axes[0])
 sns.scatterplot(x=dataset.Time[start:stop], y=dataset.Ticks[start:stop], ax=axes[1])
 sns.scatterplot(x=dataset.Time[start:stop], y=dataset.HeatingCycle[start:stop], ax=axes[2])
-sns.scatterplot(x=dataset.Time[start:stop], y=dataset.CycleLength[start:stop], ax=axes[3])
 plt.show()
 
 #%%

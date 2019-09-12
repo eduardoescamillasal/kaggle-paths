@@ -1,3 +1,8 @@
+# Module related to sensordata in this particular setting
+# of temperature modulated MOX sensor data aquisition
+#
+# //Daniel Reuter
+
 import os
 import numpy as np
 import pandas as pd
@@ -11,7 +16,6 @@ def fetch_sensor_data(datapath=datapath):
     """Download and extract sensordata to data path location
     
     Keyword Arguments:
-        file_url {string} -- Compressed sensor data file url (default: {file_url})
         datapath {string} -- Data path location on disk (default: {datapath})
     """
     import zipfile
@@ -64,15 +68,18 @@ def read_csvfiles(datapath=datapath, timeindex=False, validationset=False, prepo
         datapath {string} -- CSV files location on disk (default: {datapath})
         timeindex {bool} -- Toggle time index being used (default: {False})
         validationset {bool} -- Includes the experimental validation sets (default: {False})
-        prepocess {bool} -- Whether to preprocess feature data
+        prepocess {bool} -- Whether to preprocess feature data (default: {False})
     
     Returns:
         [pd.Dataframe] -- List of Pandas dataframes with experimental sensor data
+        features_sets
+        co_conc
     """
     import time
     start_time = time.time()
     
     datasets = []
+    features_sets = []
     metadata = metadata_list()
     (columns, units, colsind) = (metadata[0], metadata[1], metadata[2])
     csvfiles = collect_csvfiles(datapath)
@@ -81,6 +88,7 @@ def read_csvfiles(datapath=datapath, timeindex=False, validationset=False, prepo
             filepath = os.path.join(datapath,file)
             dataset = pd.read_csv(filepath)
             n = len(dataset)
+
             if timeindex == True:
                 timestamps = []
                 datetime = file.split('.csv')[0].split('_')
@@ -95,10 +103,13 @@ def read_csvfiles(datapath=datapath, timeindex=False, validationset=False, prepo
             
             if prepocess == True:
                 dataset, features, co_conc = featuregenerator(dataset, prepocess=True)
+                datasets.append(dataset)
+                features_sets.append(features)
             else:
                 dataset = featuregenerator(dataset)
+                datasets.append(dataset)
 
-            datasets.append(dataset)
+            
             print(file + ' successfully imported')
             if validationset == False:
                 break
@@ -113,11 +124,29 @@ def read_csvfiles(datapath=datapath, timeindex=False, validationset=False, prepo
                + ' set to: ' + str(timeindex))
     
     if prepocess == True:
-        return datasets, features, co_conc
+        return datasets, features_sets, co_conc
     else:
         return datasets
 
 def cyclemanager(dataset, prepocess=False):
+    """Handles periodic pattern extraction due to heater modulaton, collecting
+       cyclic data as rows of observations (signals)
+    
+    Arguments:
+        dataset {pd.DataFrame} -- Pandas dataframe with sensordata
+    
+    Keyword Arguments:
+        prepocess {bool} -- Whether to preprocess feature data (default: {False})
+    
+    Returns:
+        heatingcycle {numpy.array}, signals {[np.array]}, co_cons {np.array} -- ...
+        or
+        heatingcycle {numpy.array} -- ...
+
+        heatingcycle -- Information of where (seconds) in the cycle sample was taken
+        signals -- list of numpy arrays with cyclic signaldata
+        co_cons -- list with median concentration for each cycle
+    """
     n = len(dataset)
     colsind = metadata_list()[2]
     timecol = colsind["Time"]
@@ -155,7 +184,7 @@ def cyclemanager(dataset, prepocess=False):
                 dims = cycle.shape[0]*cycle.shape[1]
                 co_cycle.append(dataset.iloc[i,carbcol])
                 signals.append(np.log10(1/cycle.reshape(dims)))
-                co_cons.append(np.mean(co_cycle))
+                co_cons.append(np.median(co_cycle))
                 co_cycle = []
                 cycle = arr = np.empty((0,7), float)
             
@@ -164,6 +193,7 @@ def cyclemanager(dataset, prepocess=False):
             deltatime = dataset.iloc[i+1,timecol] - dataset.iloc[i,timecol]
             time += deltatime
     if prepocess == True:
+        co_cons = np.array(co_cons)
         return heatingcycle, signals, co_cons
     else:
         return heatingcycle
@@ -173,6 +203,9 @@ def featuregenerator(dataset, prepocess=False):
     
     Arguments:
         dataset {pd.DataFrame} -- Pandas dataframe with sensordata
+
+    Keyword Arguments:
+        prepocess {bool} -- Whether to preprocess feature data (default: {False})
     
     Returns:
         pd.DataFrame -- New pandas dataframe with added columns
