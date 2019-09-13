@@ -1,5 +1,6 @@
-# Module related to sensordata in this particular setting
+# Module related to this dataset in this particular setting
 # of temperature modulated MOX sensor data aquisition
+# 13 days of measurments stored in 13 files
 #
 # //Daniel Reuter
 
@@ -8,10 +9,11 @@ import numpy as np
 import pandas as pd
 
 datadirname = 'data'
+preprocdatadirname = 'preprocessed-data'
 scriptpath = os.path.abspath(__file__)
 scriptdir = os.path.dirname(scriptpath)
 datapath = os.path.join(scriptdir,datadirname)
-
+preprocpath = os.path.join(scriptdir,preprocdatadirname)
 
 def fetch_sensor_data(datapath=datapath):
     """Download and extract sensordata to data path location
@@ -24,24 +26,28 @@ def fetch_sensor_data(datapath=datapath):
     file_url = 'http://archive.ics.uci.edu/ml/machine-learning-databases/00487/gas-sensor-array-temperature-modulation.zip'
 
     if not os.path.isdir(datapath):
+        print("Creating data directory " + datapath)
         os.makedirs("data")
     file_path = os.path.join(datapath, "gas-sensor-data.zip")
     if not os.path.isfile(file_path):
+        print("Downloading compressed data to: " + file_path)
         urllib.request.urlretrieve(file_url, file_path)
+        print("Download succeded.")
     else:
-        print(file_path + '\nalready exists in\n' + datapath + ',\nfile not downloaded')
+        print(file_path + '\nalready exists, file not downloaded')
     checkcsv = 0
     for file in metadata_list()[3]:
         thiscsv = os.path.join(datapath,file)
         if not os.path.isfile(thiscsv):
             checkcsv = 1
     if checkcsv == 1:
+        print("Extracting csv files to data directory ...")
         sensor_zip = zipfile.ZipFile(file_path,'r')
         sensor_zip.extractall(datapath)
         sensor_zip.close()
+        print("Extraction done.")
     else:
         print('csv files already exists in\n' + datapath + ',\nno files extracted')
-
 
 def collect_csvfiles(datapath=datapath):
     """Find and match csv files in data directory
@@ -63,6 +69,37 @@ def collect_csvfiles(datapath=datapath):
     csvfiles.sort()
     return csvfiles
 
+def generate_features_csv(features_sets, co_conc_sets, preprocpath=preprocpath):
+    """[summary]
+    
+    Arguments:
+        features_sets {[type]} -- [description]
+        co_conc_sets {[type]} -- [description]
+    
+    Keyword Arguments:
+        scriptdir {[type]} -- [description] (default: {scriptdir})
+    """
+    preproc_dir = 'preprocessed-data'
+    if not os.path.isdir(preprocpath):
+        print("Creating preprocessed-data directory\n" + preprocpath)
+        os.makedirs(preproc_dir)
+    
+    datapath = os.path.join(scriptdir,preproc_dir)
+    
+    n = len(features_sets)
+    print("Starting generation of csv-files with preprocessed data ...")
+    for i in range(n):
+        features = features_sets[i] # Some sets have top row nans
+        co_cons = co_conc_sets[i]
+        if i+1 < 10:
+            features_filename = 'day0' + str(i+1) + '_features.csv'
+            target_filename = 'day0' + str(i+1) + '_target.csv'
+        else:
+            features_filename = 'day' + str(i+2) + '_features.csv'
+            target_filename = 'day' + str(i+2) + '_target.csv'
+        np.savetxt(os.path.join(datapath,features_filename), features, delimiter=',', fmt='%f')
+        np.savetxt(os.path.join(datapath,target_filename), co_cons, delimiter=',', fmt='%f')
+    print("Preprocessed data csv-files stored in\n" + preprocpath)
 
 def read_csvfiles(datapath=datapath, validationset=False, prepocess=False):
     """Reading sensor data from csv and stores the data in memory.
@@ -97,12 +134,14 @@ def read_csvfiles(datapath=datapath, validationset=False, prepocess=False):
             n = len(dataset)
             
             if prepocess == True:
-                dataset, features, co_conc = featuregenerator(dataset, prepocess=True)
+                print("Starting to import and preprocess sensor data from " + file)
+                dataset, features, co_conc = feature_generator(dataset, prepocess=True)
                 datasets.append(dataset)
                 features_sets.append(features)
                 co_conc_sets.append(co_conc)
             else:
-                dataset = featuregenerator(dataset)
+                print("Starting to import sensor data from" + file)
+                dataset = feature_generator(dataset)
                 datasets.append(dataset)
 
             print(file + ' successfully imported')
@@ -115,16 +154,16 @@ def read_csvfiles(datapath=datapath, validationset=False, prepocess=False):
         print(str(len(csvfiles)) + ' csv files has been loaded in ' + str(elapsed_time) + ' seconds\n' \
               + 'with preprocessing set to: ' + str(prepocess))
     else:
-        print('Calibration set only has been loaded in ' + str(elapsed_time) + ' seconds\n with preprocessing' \
+        print('Calibration set only has been loaded in ' + str(elapsed_time) + ' seconds\nwith preprocessing' \
                + 'set to: ' + str(prepocess))
     
     if prepocess == True:
+        generate_features_csv(features_sets, co_conc_sets)
         return datasets, features_sets, co_conc_sets
     else:
         return datasets
 
-
-def featuregenerator(dataset, prepocess=False):
+def feature_generator(dataset, prepocess=False):
     """Adds feature columns to dataframe
     
     Arguments:
@@ -138,19 +177,18 @@ def featuregenerator(dataset, prepocess=False):
     """
 
     if prepocess == True:
-        heatingcycle, signals, co_cons = cyclemanager(dataset, prepocess)
+        heatingcycle, signals, co_cons = cycle_manager(dataset, prepocess)
         dataset["HeatingCycle"] = heatingcycle
-        features = np.array(pd.DataFrame(signals))
+        features = np.array(pd.DataFrame(signals).dropna(axis='rows')) # Some sets have top row nans
         dataset.columns = metadata_list()[0]
         return dataset, features, co_cons
     else:
-        heatingcycle = cyclemanager(dataset, prepocess)
+        heatingcycle = cycle_manager(dataset, prepocess)
         dataset["HeatingCycle"] = heatingcycle
         dataset.columns = metadata_list()[0]
         return dataset
 
-
-def cyclemanager(dataset, prepocess=False):
+def cycle_manager(dataset, prepocess=False):
     """Handles periodic pattern extraction due to heater modulaton, collecting
        cyclic data as rows of observations (signals)
     
