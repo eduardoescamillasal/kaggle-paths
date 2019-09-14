@@ -15,6 +15,74 @@ scriptdir = os.path.dirname(scriptpath)
 datapath = os.path.join(scriptdir,datadirname)
 preprocpath = os.path.join(scriptdir,preprocdatadirname)
 
+def load_and_preprocess_data(validationset=False):
+    fetch_sensor_data()
+    datasets, features_sets, co_cons_sets = read_csvfiles(prepocess=True, validationset=validationset)
+    metadata = metadata_list()
+    return datasets, features_sets, co_cons_sets, metadata
+
+def read_csvfiles(datapath=datapath, validationset=False, prepocess=False):
+    """Reading sensor data from csv and stores the data in memory.
+    
+    Keyword Arguments:
+        datapath {string} -- CSV files location on disk (default: {datapath})
+        validationset {bool} -- Includes the experimental validation sets (default: {False})
+        prepocess {bool} -- Whether to preprocess feature data (default: {False})
+    
+    Returns:
+        [pd.Dataframe] -- List of Pandas dataframes with experimental sensor data
+        or
+        [pd.Dataframe], [pd.Dataframe], numpy.array
+
+        [pd.Dataframe] -- List of Pandas dataframes with experimental sensor data
+        [pd.Dataframe] -- List of Pandas dataframes with preprocessed sensor features data
+        [numpy.array] -- List of numpy array with carbon monoxid target values for features data
+    """
+    import time
+    start_time = time.time()
+    
+    datasets = []
+    features_sets = []
+    co_conc_sets = []
+    metadata = metadata_list()
+    (columns, units, colsind) = (metadata[0], metadata[1], metadata[2])
+    csvfiles = collect_csvfiles(datapath)
+
+    for file in csvfiles:
+            filepath = os.path.join(datapath,file)
+            dataset = pd.read_csv(filepath)
+            n = len(dataset)
+            
+            if prepocess == True:
+                print("Starting to import and preprocess sensor data from " + file)
+                dataset, features, co_conc = feature_generator(dataset, prepocess=True)
+                datasets.append(dataset)
+                features_sets.append(features)
+                co_conc_sets.append(co_conc)
+            else:
+                print("Starting to import sensor data from" + file)
+                dataset = feature_generator(dataset)
+                datasets.append(dataset)
+
+            print(file + ' successfully imported')
+            if validationset == False:
+                break
+
+    elapsed_time = time.time() - start_time
+    print(' ')
+    if validationset == True:
+        print(str(len(csvfiles)) + ' csv files has been loaded in ' + str(elapsed_time) + ' seconds\n' \
+              + 'with preprocessing set to: ' + str(prepocess))
+    else:
+        print('Calibration set only has been loaded in ' + str(elapsed_time) + ' seconds\nwith preprocessing' \
+               + 'set to: ' + str(prepocess))
+    
+    if prepocess == True:
+        generate_features_csv(features_sets, co_conc_sets)
+        return datasets, features_sets, co_conc_sets
+    else:
+        return datasets
+
 def fetch_sensor_data(datapath=datapath):
     """Download and extract sensordata to data path location
     
@@ -101,68 +169,6 @@ def generate_features_csv(features_sets, co_conc_sets, preprocpath=preprocpath):
         np.savetxt(os.path.join(datapath,target_filename), co_cons, delimiter=',', fmt='%f')
     print("Preprocessed data csv-files stored in\n" + preprocpath)
 
-def read_csvfiles(datapath=datapath, validationset=False, prepocess=False):
-    """Reading sensor data from csv and stores the data in memory.
-    
-    Keyword Arguments:
-        datapath {string} -- CSV files location on disk (default: {datapath})
-        validationset {bool} -- Includes the experimental validation sets (default: {False})
-        prepocess {bool} -- Whether to preprocess feature data (default: {False})
-    
-    Returns:
-        [pd.Dataframe] -- List of Pandas dataframes with experimental sensor data
-        or
-        [pd.Dataframe], [pd.Dataframe], numpy.array
-
-        [pd.Dataframe] -- List of Pandas dataframes with experimental sensor data
-        [pd.Dataframe] -- List of Pandas dataframes with preprocessed sensor features data
-        [numpy.array] -- List of numpy array with carbon monoxid target values for features data
-    """
-    import time
-    start_time = time.time()
-    
-    datasets = []
-    features_sets = []
-    co_conc_sets = []
-    metadata = metadata_list()
-    (columns, units, colsind) = (metadata[0], metadata[1], metadata[2])
-    csvfiles = collect_csvfiles(datapath)
-
-    for file in csvfiles:
-            filepath = os.path.join(datapath,file)
-            dataset = pd.read_csv(filepath)
-            n = len(dataset)
-            
-            if prepocess == True:
-                print("Starting to import and preprocess sensor data from " + file)
-                dataset, features, co_conc = feature_generator(dataset, prepocess=True)
-                datasets.append(dataset)
-                features_sets.append(features)
-                co_conc_sets.append(co_conc)
-            else:
-                print("Starting to import sensor data from" + file)
-                dataset = feature_generator(dataset)
-                datasets.append(dataset)
-
-            print(file + ' successfully imported')
-            if validationset == False:
-                break
-
-    elapsed_time = time.time() - start_time
-    print(' ')
-    if validationset == True:
-        print(str(len(csvfiles)) + ' csv files has been loaded in ' + str(elapsed_time) + ' seconds\n' \
-              + 'with preprocessing set to: ' + str(prepocess))
-    else:
-        print('Calibration set only has been loaded in ' + str(elapsed_time) + ' seconds\nwith preprocessing' \
-               + 'set to: ' + str(prepocess))
-    
-    if prepocess == True:
-        generate_features_csv(features_sets, co_conc_sets)
-        return datasets, features_sets, co_conc_sets
-    else:
-        return datasets
-
 def feature_generator(dataset, prepocess=False):
     """Adds feature columns to dataframe
     
@@ -180,6 +186,8 @@ def feature_generator(dataset, prepocess=False):
         heatingcycle, signals, co_cons = cycle_manager(dataset, prepocess)
         dataset["HeatingCycle"] = heatingcycle
         features = np.array(pd.DataFrame(signals).dropna(axis='rows')) # Some sets have top row nans
+        diff = len(co_cons) - len(features)
+        co_cons = co_cons[diff:]
         dataset.columns = metadata_list()[0]
         return dataset, features, co_cons
     else:
