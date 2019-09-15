@@ -222,7 +222,7 @@ def cycle_manager(dataset, prepocess=False):
     timecol = colsind["Time"]
     heatcol = colsind["HeaterVoltage"]
 
-    sensorset = 'else'
+    sensorset = 'FIG'
 
     if sensorset == 'FIG':
         SET = [6,7,8,9,10,11,12]
