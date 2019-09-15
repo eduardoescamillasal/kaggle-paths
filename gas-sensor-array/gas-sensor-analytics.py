@@ -5,11 +5,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import sensordata
 sns.set_style(style='whitegrid')
-sensordata.fetch_sensor_data()
-datasets = sensordata.read_csvfiles()
-metadata = sensordata.metadata_list()
-n = len(datasets[0])
-dataset = datasets[0]
+
+datasets, features_sets, target_sets, metadata = sensordata.load_and_preprocess_data(validationset=True)
+calibrationset = datasets[0]
+calibration_features_matrix = features_sets[0]
+calibration_co_cons = target_sets[0]
 
 #%%
 n = len(dataset)

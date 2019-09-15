@@ -15,11 +15,13 @@ scriptdir = os.path.dirname(scriptpath)
 datapath = os.path.join(scriptdir,datadirname)
 preprocpath = os.path.join(scriptdir,preprocdatadirname)
 
-def load_and_preprocess_data(validationset=False):
+def load_and_preprocess_data(validationset=False, savecsv=False):
     fetch_sensor_data()
-    datasets, features_sets, co_cons_sets = read_csvfiles(prepocess=True, validationset=validationset)
+    datasets, features_sets, target_sets = read_csvfiles(prepocess=True, validationset=validationset)
     metadata = metadata_list()
-    return datasets, features_sets, co_cons_sets, metadata
+    if savecsv == True:
+        generate_features_csv(features_sets, target_sets)
+    return datasets, features_sets, target_sets, metadata
 
 def read_csvfiles(datapath=datapath, validationset=False, prepocess=False):
     """Reading sensor data from csv and stores the data in memory.
@@ -43,7 +45,7 @@ def read_csvfiles(datapath=datapath, validationset=False, prepocess=False):
     
     datasets = []
     features_sets = []
-    co_conc_sets = []
+    target_sets = []
     metadata = metadata_list()
     (columns, units, colsind) = (metadata[0], metadata[1], metadata[2])
     csvfiles = collect_csvfiles(datapath)
@@ -55,10 +57,10 @@ def read_csvfiles(datapath=datapath, validationset=False, prepocess=False):
             
             if prepocess == True:
                 print("Starting to import and preprocess sensor data from " + file)
-                dataset, features, co_conc = feature_generator(dataset, prepocess=True)
+                dataset, features, target = feature_generator(dataset, prepocess=True)
                 datasets.append(dataset)
                 features_sets.append(features)
-                co_conc_sets.append(co_conc)
+                target_sets.append(target)
             else:
                 print("Starting to import sensor data from" + file)
                 dataset = feature_generator(dataset)
@@ -78,8 +80,7 @@ def read_csvfiles(datapath=datapath, validationset=False, prepocess=False):
                + 'set to: ' + str(prepocess))
     
     if prepocess == True:
-        generate_features_csv(features_sets, co_conc_sets)
-        return datasets, features_sets, co_conc_sets
+        return datasets, features_sets, target_sets
     else:
         return datasets
 
@@ -137,12 +138,12 @@ def collect_csvfiles(datapath=datapath):
     csvfiles.sort()
     return csvfiles
 
-def generate_features_csv(features_sets, co_conc_sets, preprocpath=preprocpath):
+def generate_features_csv(features_sets, target_sets, preprocpath=preprocpath):
     """[summary]
     
     Arguments:
         features_sets {[type]} -- [description]
-        co_conc_sets {[type]} -- [description]
+        target_sets {[type]} -- [description]
     
     Keyword Arguments:
         scriptdir {[type]} -- [description] (default: {scriptdir})
@@ -158,7 +159,7 @@ def generate_features_csv(features_sets, co_conc_sets, preprocpath=preprocpath):
     print("Starting generation of csv-files with preprocessed data ...")
     for i in range(n):
         features = features_sets[i] # Some sets have top row nans
-        co_cons = co_conc_sets[i]
+        co_cons = target_sets[i]
         if i+1 < 10:
             features_filename = 'day0' + str(i+1) + '_features.csv'
             target_filename = 'day0' + str(i+1) + '_target.csv'
@@ -185,11 +186,11 @@ def feature_generator(dataset, prepocess=False):
     if prepocess == True:
         heatingcycle, signals, co_cons = cycle_manager(dataset, prepocess)
         dataset["HeatingCycle"] = heatingcycle
-        features = np.array(pd.DataFrame(signals).dropna(axis='rows')) # Some sets have top row nans
-        diff = len(co_cons) - len(features)
-        co_cons = co_cons[diff:]
+        features = signals
+        target = co_cons
+
         dataset.columns = metadata_list()[0]
-        return dataset, features, co_cons
+        return dataset, features, target
     else:
         heatingcycle = cycle_manager(dataset, prepocess)
         dataset["HeatingCycle"] = heatingcycle
@@ -215,53 +216,85 @@ def cycle_manager(dataset, prepocess=False):
         signals -- list of numpy arrays with cyclic signaldata
         co_cons -- list with median concentration for each cycle
     """
+    dataset = np.array(dataset) # Converting to 2D array
     n = len(dataset)
     colsind = metadata_list()[2]
     timecol = colsind["Time"]
     heatcol = colsind["HeaterVoltage"]
-    signalfilter = (dataset.iloc[:,heatcol] < 0.25) 
-    signalset = dataset[signalfilter]
+
+    sensorset = 'else'
+
+    if sensorset == 'FIG':
+        SET = [6,7,8,9,10,11,12]
+        samplepart = 0
+    elif sensorset == 'FIS':
+        SET = [13,15,16,17,18,19] # Sensor 14 is malfunctioning
+        samplepart = 1
+    elif sensorset == 'ALL':
+        SET = [6,7,8,9,10,11,12,13,15,16,17,18,19]
+        samplepart = 2
+    else:
+        SET = [13]
+        samplepart = 1
     
     heatingcycle = np.zeros(n, dtype=float)
     time = 5.0
 
     if prepocess == True:
         carbcol = colsind["CO"]
-        cycle = arr = np.empty((0,7), float)
+        signal_cycle = []
         co_cycle = []
         co_cons = []
         signals = []
 
     for i in range(n - 1):
         heatingcycle[i] = time
-        deltatime = dataset.iloc[i+1,timecol] - dataset.iloc[i,timecol]
+        deltatime = dataset[i+1,timecol] - dataset[i,timecol]
         time += deltatime
 
-        if prepocess == True:
-            sensorsignals = np.array(dataset.iloc[i,6:13]).reshape(1,7) #Figaro sensors
-            cycle = np.append(cycle, sensorsignals, axis=0)
-            co_cycle.append(dataset.iloc[i,carbcol])
+        if (prepocess == True and (dataset[i,heatcol] < 0.25)): # filter out heating period
+            sensorsignals = dataset[i,SET] # Selected sensors
+            signal_cycle.append(sensorsignals)
+            co_cycle.append(dataset[i,carbcol])
 
-        thisvalue = dataset.iloc[i,heatcol]
-        nextvalue = dataset.iloc[i+1,heatcol]
-        if (thisvalue < 0.5) and (nextvalue >= 0.5):
+        thisheat = dataset[i,heatcol]
+        nextheat = dataset[i+1,heatcol]
+        if (thisheat < 0.5) and (nextheat >= 0.5): # heater transition state
 
-            if prepocess == True:
-                cycle = np.append(cycle, sensorsignals, axis=0)
-                cycle = cycle[20:65] # Euqal part log transform linear signal range
-                dims = cycle.shape[0]*cycle.shape[1]
-                co_cycle.append(dataset.iloc[i,carbcol])
-                signals.append(np.log10(1/cycle.reshape(dims)))
-                co_cons.append(np.median(co_cycle))
+            if (prepocess == True):
+                signal_cycle.append(sensorsignals)
+                signal_cycle = np.array(signal_cycle) # Convert list of numpy vectors into 2D array
+                signal_length = len(signal_cycle)
+
+                if samplepart == 0:
+                    samplebool = (signal_length < 57)
+                elif samplepart == 1:
+                    samplebool = (signal_length > 57)
+                else:
+                    samplebool = True
+
+                dims = signal_cycle.shape[0]*signal_cycle.shape[1] # total dimension of sensor array signal
+                if samplebool: # keep only one sensor type -- < 57 FIG > 57 FIS
+                    signal_cycle = signal_cycle[3:-3] # Cut edges with noise
+                    dims = signal_cycle.shape[0]*signal_cycle.shape[1]
+                    flatcycle = signal_cycle.reshape(dims) # flat out cycle data spanning the whole row
+                    transformedsignals = np.log(1/flatcycle) # log transform ...
+                    co_cycle.append(dataset[i,carbcol])
+                    signals.append(np.array(transformedsignals))
+                    co_cons.append(np.median(co_cycle))
+
                 co_cycle = []
-                cycle = arr = np.empty((0,7), float)
+                signal_cycle = []
             
             time=0.0
             heatingcycle[i] = time
-            deltatime = dataset.iloc[i+1,timecol] - dataset.iloc[i,timecol]
+            deltatime = dataset[i+1,timecol] - dataset[i,timecol]
             time += deltatime
     if prepocess == True:
-        co_cons = np.array(co_cons)
+        co_cons = np.array(pd.DataFrame(co_cons))
+        signals = np.array(pd.DataFrame(signals).interpolate(axis=1))
+        print("The shape of features matrix is:")
+        print(signals.shape)
         return heatingcycle, signals, co_cons
     else:
         return heatingcycle

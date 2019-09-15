@@ -54,15 +54,8 @@ and the measured resistance of the 14 MOX gas sensors:
 Resistance values **R01-R07** correspond to **FIGARO TGS 3870 A-04** sensors, whereas **R08-R14** correspond to **FIS SB-500-12** units.
 The time series are sampled at **3.5 Hz**.
 
-#### Reverences:
-
-The description of the experimental setup and chemical detection platform can be found in [1-2].  
-The dataset has been used also in [3].
-
-1. J. Burgués, J.M Jiménez-Soto, S. Marco, *Estimation of the limit of detection in semiconductor gas sensors through linearized calibration models*, Analytica chimica acta 1013 (2018): 13-25.
-2. J. Burgués, S. Marco, *Multivariate estimation of the limit of detection by orthogonal partial least squares in temperature-modulated MOX sensors*, Analytica chimica acta 1019 (2018): 49-64.
-3. L. Fernandez, J. Yan, J. Fonollosa, J. Burgués, A. Gutierrez, S. Marco, *A practical method to estimate the resolving power of a chemical sensor array: application to feature selection*, Frontiers in chemistry 6 (2018).
-30. A.P. Lee, B.J. *Reedy, Temperature modulation in semiconductor gas sensing*, Sensors Actuators B Chem. 60 (1999) 35e42.
+**Aquisition module**
+  - Agilent HP34970A/34901A DAQ
 
 **Sensors used**
 - Sensirion **SHT75**
@@ -90,8 +83,11 @@ the response pattern are highly correlated because the shape of the
 heating waveform smoothly varies the sensor temperature (except  
 for the temperature transitions).
 
-![Block diagram of the LOD estimation/validation method](images/lod-estimation-block-diagram.png "Figure 1")  
-**Figure 1.** Block diagram of the LOD estimation/validation method described in [2]. The MOX sensor is exposed to dynamic gas mixtures of CO and Humidity. The sensortemperature is modulated using a square heating waveform (V<sub>H</sub>). Measuring the sensor resistance (R<sub>s</sub>) during a heating cycle produces patterns characteristic of the target gas and the interferences. A PLS model is built with the signals obtained in Day 1. This model is then orthogonalized, and the LOD is estimated from the scores of the first orthogonal component. The LOD estimate is validated by projecting signals measured in the following days into the orthogonal PLS model.
+![Block diagram of the LOD estimation/validation method](images/lod-estimation.jpg "Figure 1")  
+**Figure 1.** Experimental test bench for the generation of dynamic gas mixtures and acquisition of the sensor signals. Left: Block diagram. Right: Picture. [1]
+
+![Block diagram of the LOD estimation/validation method](images/sensor.png "Figure 2")  
+**Figure 2.** Sensor response illustration. [2]
 
 ### Exposure due to human inhaling
 
@@ -114,8 +110,18 @@ for the temperature transitions).
 | 12,800 PPM | Immediate physiological effects, unconsciousness. Death within 1-3 minutes of exposure. |
 
 
-### Analytics approaches
+### Analytics approaches suggestion
   1. Threshhold classifier (warning system)
   2. Concentration predictor (advanced logging system)
   3. Concentration classifier (simple logging system)
   4. Substance identifier (monitoring system)
+
+#### Reverences:
+
+The description of the experimental setup and chemical detection platform can be found in [1-2].  
+The dataset has been used also in [3].
+
+1. J. Burgués, J.M Jiménez-Soto, S. Marco, *Estimation of the limit of detection in semiconductor gas sensors through linearized calibration models*, Analytica chimica acta 1013 (2018): 13-25.
+2. J. Burgués, S. Marco, *Multivariate estimation of the limit of detection by orthogonal partial least squares in temperature-modulated MOX sensors*, Analytica chimica acta 1019 (2018): 49-64.
+3. L. Fernandez, J. Yan, J. Fonollosa, J. Burgués, A. Gutierrez, S. Marco, *A practical method to estimate the resolving power of a chemical sensor array: application to feature selection*, Frontiers in chemistry 6 (2018).
+30. A.P. Lee, B.J. *Reedy, Temperature modulation in semiconductor gas sensing*, Sensors Actuators B Chem. 60 (1999) 35e42.
