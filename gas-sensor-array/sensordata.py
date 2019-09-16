@@ -15,15 +15,65 @@ scriptdir = os.path.dirname(scriptpath)
 datapath = os.path.join(scriptdir,datadirname)
 preprocpath = os.path.join(scriptdir,preprocdatadirname)
 
-def load_and_preprocess_data(validationset=False, savecsv=False):
+def load_and_preprocess_data(validationset=False, savecsv=False, sensorset='FIS'):
     fetch_sensor_data()
-    datasets, features_sets, target_sets = read_csvfiles(prepocess=True, validationset=validationset)
+    datasets, features_sets, target_sets = read_csvfiles(prepocess=True, validationset=validationset, sensorset=sensorset)
     metadata = metadata_list()
     if savecsv == True:
         generate_features_csv(features_sets, target_sets)
     return datasets, features_sets, target_sets, metadata
 
-def read_csvfiles(datapath=datapath, validationset=False, prepocess=False):
+def postprocess_data(features, target):
+    """[summary]
+    
+    Arguments:
+        features {[type]} -- [description]
+        target {[type]} -- [description]
+    
+    Returns:
+        [type] -- [description]
+    """
+    print("Postprocessing data matrix into subtarget concentration samples ..")
+    start = 0
+    for elem in target:
+        if elem > 1:
+            break
+        start+=1
+
+    sampleset = features[start:]
+    targetset = target[start:]
+    n = len(sampleset)
+    dims = sampleset.shape[1]
+    experiment_matrix = []
+    observation = []
+    targets = []
+
+    if n > 2050:
+        cyclespersample = 40
+    else:
+        cyclespersample = 20
+
+    for i in range(n):
+        observation.append(sampleset[i])
+        if (i+1)%cyclespersample == 0:
+            flatobs = np.array(observation).reshape(dims*cyclespersample)
+            experiment_matrix.append(flatobs)
+            targets.append(targetset[i-1])
+            observation = []
+    
+
+    if len(targets) < 100:
+        flatobs = np.array(observation).reshape(dims*len(observation))
+        experiment_matrix.append(flatobs)
+        targets.append(targetset[i-1])
+
+    targets = np.array(targets).reshape(100)
+    experiment_matrix = np.array(pd.DataFrame(experiment_matrix).interpolate(axis=1))
+    print("Postprocessing done.")
+    return experiment_matrix, targets
+
+
+def read_csvfiles(datapath=datapath, validationset=False, prepocess=False, sensorset='FIS'):
     """Reading sensor data from csv and stores the data in memory.
     
     Keyword Arguments:
@@ -57,7 +107,7 @@ def read_csvfiles(datapath=datapath, validationset=False, prepocess=False):
             
             if prepocess == True:
                 print("Starting to import and preprocess sensor data from " + file)
-                dataset, features, target = feature_generator(dataset, prepocess=True)
+                dataset, features, target = feature_generator(dataset, prepocess=True, sensorset=sensorset)
                 datasets.append(dataset)
                 features_sets.append(features)
                 target_sets.append(target)
@@ -170,7 +220,7 @@ def generate_features_csv(features_sets, target_sets, preprocpath=preprocpath):
         np.savetxt(os.path.join(datapath,target_filename), co_cons, delimiter=',', fmt='%f')
     print("Preprocessed data csv-files stored in\n" + preprocpath)
 
-def feature_generator(dataset, prepocess=False):
+def feature_generator(dataset, prepocess=False, sensorset='FIS'):
     """Adds feature columns to dataframe
     
     Arguments:
@@ -184,7 +234,7 @@ def feature_generator(dataset, prepocess=False):
     """
 
     if prepocess == True:
-        heatingcycle, signals, co_cons = cycle_manager(dataset, prepocess)
+        heatingcycle, signals, co_cons = cycle_manager(dataset, prepocess=True, sensorset=sensorset)
         dataset["HeatingCycle"] = heatingcycle
         features = signals
         target = co_cons
@@ -192,12 +242,12 @@ def feature_generator(dataset, prepocess=False):
         dataset.columns = metadata_list()[0]
         return dataset, features, target
     else:
-        heatingcycle = cycle_manager(dataset, prepocess)
+        heatingcycle = cycle_manager(dataset)
         dataset["HeatingCycle"] = heatingcycle
         dataset.columns = metadata_list()[0]
         return dataset
 
-def cycle_manager(dataset, prepocess=False):
+def cycle_manager(dataset, prepocess=False, sensorset='FIS'):
     """Handles periodic pattern extraction due to heater modulaton, collecting
        cyclic data as rows of observations (signals)
     
@@ -221,22 +271,6 @@ def cycle_manager(dataset, prepocess=False):
     colsind = metadata_list()[2]
     timecol = colsind["Time"]
     heatcol = colsind["HeaterVoltage"]
-
-    sensorset = 'FIG'
-
-    if sensorset == 'FIG':
-        SET = [6,7,8,9,10,11,12]
-        samplepart = 0
-    elif sensorset == 'FIS':
-        SET = [13,15,16,17,18,19] # Sensor 14 is malfunctioning
-        samplepart = 1
-    elif sensorset == 'ALL':
-        SET = [6,7,8,9,10,11,12,13,15,16,17,18,19]
-        samplepart = 2
-    else:
-        SET = [13]
-        samplepart = 1
-    
     heatingcycle = np.zeros(n, dtype=float)
     time = 5.0
 
@@ -246,13 +280,27 @@ def cycle_manager(dataset, prepocess=False):
         co_cycle = []
         co_cons = []
         signals = []
+        signalfilterval = 57
+        heaterfilterval = 0.21
+        if sensorset == 'FIG':
+            SET = [6,7,8,9,10,11,12]
+            samplepart = 0
+        elif sensorset == 'FIS':
+            SET = [13,15,16,17,18,19] # Sensor 14 is malfunctioning
+            samplepart = 1
+        elif sensorset == 'ALL':
+            SET = [6,7,8,9,10,11,12,13,15,16,17,18,19] # Sensor 14 is malfunctioning
+            samplepart = 2
+        else:
+            SET = [13]
+            samplepart = 1
 
     for i in range(n - 1):
         heatingcycle[i] = time
         deltatime = dataset[i+1,timecol] - dataset[i,timecol]
         time += deltatime
 
-        if (prepocess == True and (dataset[i,heatcol] < 0.25)): # filter out heating period
+        if (prepocess == True) and (dataset[i,heatcol] < heaterfilterval): # filter out heating period
             sensorsignals = dataset[i,SET] # Selected sensors
             signal_cycle.append(sensorsignals)
             co_cycle.append(dataset[i,carbcol])
@@ -267,15 +315,16 @@ def cycle_manager(dataset, prepocess=False):
                 signal_length = len(signal_cycle)
 
                 if samplepart == 0:
-                    samplebool = (signal_length < 57)
+                    samplebool = (signal_length < signalfilterval)
                 elif samplepart == 1:
-                    samplebool = (signal_length > 57)
+                    samplebool = (signal_length > signalfilterval)
                 else:
                     samplebool = True
 
-                dims = signal_cycle.shape[0]*signal_cycle.shape[1] # total dimension of sensor array signal
                 if samplebool: # keep only one sensor type -- < 57 FIG > 57 FIS
-                    signal_cycle = signal_cycle[3:-3] # Cut edges with noise
+                    if sensorset == 'ALL':
+                        signal_cycle = signal_cycle[:40] # cut out 5s part that differs between sensors
+                    signal_cycle = signal_cycle[:-3] # Cut edges with noise
                     dims = signal_cycle.shape[0]*signal_cycle.shape[1]
                     flatcycle = signal_cycle.reshape(dims) # flat out cycle data spanning the whole row
                     transformedsignals = np.log(1/flatcycle) # log transform ...
