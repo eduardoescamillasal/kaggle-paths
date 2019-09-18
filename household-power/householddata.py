@@ -12,6 +12,31 @@ def load_and_preprocess_data():
     fetch_power_data()
     return load_power_data()
 
+def attach_shifted_series(data, n_input=1, n_output=1, dropnan=True):
+    n_pred = data.shape[1]
+    dataframe = pd.DataFrame(data)
+    cols, columns = [], []
+    
+    # append backward shifted predictor data to dataframe
+    for i in range(n_input, 0, -1):
+        cols.append(dataframe.shift(i))
+        columns += [('col%d[t-%d]' % (j+1, i)) for j in range(n_pred)]
+    
+    # append forward shifted target data to dataframe
+    for i in range(0, n_output):
+        cols.append(dataframe.shift(-i))
+        if i == 0:
+            columns += [('target%d[t]' % (j+1)) for j in range(n_pred)]
+        else:
+            columns += [('target%d[t+%d]' % (j+1, i)) for j in range(n_pred)]
+    
+    aggregation = pd.concat(cols, axis=1)
+    aggregation.columns = columns
+    
+    if dropnan:
+        aggregation.dropna(inplace=True)
+    return aggregation
+
 def hour_of_day_summary(powerdata,daysfromstart):
     cols = ["S1","S2","S3"]
     hourssummary = np.zeros((3,24))
@@ -56,7 +81,6 @@ def daytimeframedata(powerdata,cols,day_of_interest):
 
     return powerdata[cols][timefrom:timeto], timefrom
 
-
 def convert_power_data(data):
     columns = metadata_list()[0]
     timefrom = '2006-12-16 17:24'
@@ -65,16 +89,30 @@ def convert_power_data(data):
                           np.timedelta64(1,'m'),
                           dtype='datetime64')
     powerdata = pd.DataFrame(data, index = timestamp, columns = columns)
-    powerdata.GlobalActivePower = powerdata.GlobalActivePower.astype('float64')
-    powerdata.GlobalReactivePower = powerdata.GlobalReactivePower.astype('float64')
-    powerdata.Voltage = powerdata.Voltage.astype('float64')
-    powerdata.GlobalIntensity = powerdata.GlobalIntensity.astype('float64')
-    powerdata.S1 = powerdata.S1.astype('float64')
-    powerdata.S2 = powerdata.S2.astype('float64')
-    powerdata.S3 = powerdata.S3.astype('float64')
 
+    powerdata.GlobalActivePower = powerdata.GlobalActivePower.astype('float64')
+    powerdata.GlobalActivePower = powerdata.GlobalActivePower.interpolate()
+
+    powerdata.GlobalReactivePower = powerdata.GlobalReactivePower.astype('float64')
+    powerdata.GlobalReactivePower = powerdata.GlobalReactivePower.interpolate()
+
+    powerdata.Voltage = powerdata.Voltage.astype('float64')
+    powerdata.Voltage = powerdata.Voltage.interpolate()
+
+    powerdata.GlobalIntensity = powerdata.GlobalIntensity.astype('float64')
+    powerdata.GlobalIntensity = powerdata.GlobalIntensity.interpolate()
+
+    powerdata.S1 = powerdata.S1.astype('float64')
+    powerdata.S1 = powerdata.S1.interpolate()
+
+    powerdata.S2 = powerdata.S2.astype('float64')
+    powerdata.S2 = powerdata.S2.interpolate()
+
+    powerdata.S3 = powerdata.S3.astype('float64')
+    powerdata.S3 = powerdata.S3.interpolate()
+    
     powerdata["S4"] = (powerdata.GlobalActivePower * 1000 / 60) - (powerdata.S1 + powerdata.S2 + powerdata.S3)
-    powerdata.S4 = powerdata.S4.astype('float64')
+    
     return powerdata
 
 def load_power_data(datapath=datapath):
