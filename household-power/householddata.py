@@ -37,40 +37,49 @@ def attach_shifted_series(data, n_input=1, n_output=1, dropnan=True):
         aggregation.dropna(inplace=True)
     return aggregation
 
-def hour_of_day_summary(powerdata,daysfromstart):
-    cols = ["S1","S2","S3"]
-    hourssummary = np.zeros((3,24))
-    for i in range(daysfromstart):
-        timeframedata, timefrom = daytimeframedata(powerdata,cols,i)
-        n = len(timeframedata)
-        hour = timeframedata.index.hour
-        for i in range(n-1):
-            minuteconsumption = timeframedata.iloc[i]/1000
-            if np.isnan(minuteconsumption).any():
-                minuteconsumption = [0.0, 0.0, 0.0]
-            hourssummary[:,hour[i]]+=minuteconsumption
-    print("Days processed: " +  str(daysfromstart))
-    return hourssummary
+def hour_of_day_average(powerdata):
+    rooms = ["S1","S2","S3","S4"]
+    roomdata = powerdata[rooms].resample("h").mean()
+    n = len(roomdata)
+    hoursaverage = np.zeros((3,24))
+    for i in range(n):
+        timefrom = roomdata.index[i]
+        consumption = roomdata.iloc[i]
+        hoursaverage[:,timefrom.hour]+=consumption
+    return hoursaverage
 
-def months_summary(powerdata,yearsfromstart):
-    cols = ["S1","S2","S3"]
-    monthssummary = np.zeros((3,12))
-    for i in range(365*yearsfromstart):
-        timeframedata, timefrom = daytimeframedata(powerdata,cols,i)
-        dayconsumption = np.sum(timeframedata)/1000
-        monthssummary[:,timefrom.month-1]+=dayconsumption
-    print("Days processed: " +  str(i+1))
-    return monthssummary
+def day_of_week_average(powerdata,weeksfromstart):
+    rooms = ["S1","S2","S3","S4"]
+    roomdata = powerdata[rooms].resample("D").mean()
+    n = len(roomdata)
+    dayofweekaverage = np.zeros((3,7))
+    for i in range(n):
+        timefrom = roomdata.index[i]
+        consumption = roomdata.iloc[i]
+        dayofweekaverage[:,timefrom.dayofweek]+=consumption
+    return dayofweekaverage
 
-def day_of_week_summary(powerdata,weeksfromstart):
-    cols = ["S1","S2","S3"]
-    dayofweeksummary = np.zeros((3,7))
-    for i in range(7*weeksfromstart):
-        timeframedata, timefrom = daytimeframedata(powerdata,cols,i)
-        dayconsumption = np.sum(timeframedata)/1000
-        dayofweeksummary[:,timefrom.dayofweek]+=dayconsumption
-    print("Days processed: " +  str(i+1))
-    return dayofweeksummary
+def months_average(powerdata):
+    rooms = ["S1","S2","S3","S4"]
+    roomdata = powerdata[rooms].resample("M").mean()
+    n = len(roomdata)
+    monthsaverage = np.zeros((3,12))
+    for i in range(n):
+        timefrom = roomdata.index[i]
+        consumption = roomdata.iloc[i]
+        monthsaverage[:,timefrom.month-1]+=consumption
+    return monthsaverage
+
+def years_average(powerdata):
+    rooms = ["S1","S2","S3","S4"]
+    roomdata = powerdata[rooms].resample("Y").mean()
+    n = len(roomdata)
+    yearsaverage = np.zeros((4,5))
+    for i in range(n):
+        timefrom = roomdata.index[i]
+        consumption = roomdata.iloc[i]
+        yearsaverage[:,(timefrom.year-1)%5]+=consumption
+    return yearsaverage
 
 def daytimeframedata(powerdata,cols,day_of_interest):
     startdate = pd.Timestamp('2006-12-17 00:00')
@@ -210,5 +219,7 @@ def metadata_list():
               "Sep","Okt","Nov","Dec"]
     
     hourofday = [str(x) for x in range(24)]
+
+    years = ["2006","2007","2008","2009","2010"]
     
-    return [columns, units, colsind, txt_files, dayofweek, months, hourofday]
+    return [columns, units, colsind, txt_files, dayofweek, months, hourofday, years]
