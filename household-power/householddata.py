@@ -41,7 +41,7 @@ def hour_of_day_average(powerdata):
     rooms = ["S1","S2","S3","S4"]
     roomdata = powerdata[rooms].resample("h").mean()
     n = len(roomdata)
-    hoursaverage = np.zeros((3,24))
+    hoursaverage = np.zeros((4,24))
     for i in range(n):
         timefrom = roomdata.index[i]
         consumption = roomdata.iloc[i]
@@ -52,7 +52,7 @@ def day_of_week_average(powerdata,weeksfromstart):
     rooms = ["S1","S2","S3","S4"]
     roomdata = powerdata[rooms].resample("D").mean()
     n = len(roomdata)
-    dayofweekaverage = np.zeros((3,7))
+    dayofweekaverage = np.zeros((4,7))
     for i in range(n):
         timefrom = roomdata.index[i]
         consumption = roomdata.iloc[i]
@@ -63,7 +63,7 @@ def months_average(powerdata):
     rooms = ["S1","S2","S3","S4"]
     roomdata = powerdata[rooms].resample("M").mean()
     n = len(roomdata)
-    monthsaverage = np.zeros((3,12))
+    monthsaverage = np.zeros((4,12))
     for i in range(n):
         timefrom = roomdata.index[i]
         consumption = roomdata.iloc[i]
