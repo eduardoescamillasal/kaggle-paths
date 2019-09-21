@@ -15,6 +15,13 @@ scriptdir = os.path.dirname(scriptpath)
 datapath = os.path.join(scriptdir,datadirname)
 preprocpath = os.path.join(scriptdir,preprocdatadirname)
 
+def split_train_test(data, test_ratio):
+    shuffled_indices = np.random.permutation(len(data))
+    test_set_size = int(len(data) * test_ratio)
+    test_indices = shuffled_indices[:test_set_size]
+    train_indices = shuffled_indices[test_set_size:]
+    return data.iloc[train_indices], data.iloc[test_indices]
+
 def load_and_preprocess_data(validationset=False, savecsv=False, sensorset='FIS'):
     fetch_sensor_data()
     datasets, features_sets, target_sets = read_csvfiles(prepocess=True, validationset=validationset, sensorset=sensorset)
@@ -71,7 +78,6 @@ def postprocess_data(features, target):
     experiment_matrix = np.array(pd.DataFrame(experiment_matrix).interpolate(axis=1))
     print("Postprocessing done.")
     return experiment_matrix, targets
-
 
 def read_csvfiles(datapath=datapath, validationset=False, prepocess=False, sensorset='FIS'):
     """Reading sensor data from csv and stores the data in memory.
