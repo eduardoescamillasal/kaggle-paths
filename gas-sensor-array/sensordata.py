@@ -330,6 +330,8 @@ def cycle_manager(dataset, prepocess=False, sensorset='FIS'):
                 if samplebool: # keep only one sensor type -- < 57 FIG > 57 FIS
                     if sensorset == 'ALL':
                         signal_cycle = signal_cycle[:40] # cut out 5s part that differs between sensors
+                    elif sensorset == 'FIG':
+                        signal_cycle = signal_cycle[:43]
                     signal_cycle = signal_cycle[:-3] # Cut edges with noise
                     dims = signal_cycle.shape[0]*signal_cycle.shape[1]
                     flatcycle = signal_cycle.reshape(dims) # flat out cycle data spanning the whole row
