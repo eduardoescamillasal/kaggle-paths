@@ -332,7 +332,9 @@ def cycle_manager(dataset, prepocess=False, sensorset='FIS'):
                         signal_cycle = signal_cycle[:40] # cut out 5s part that differs between sensors
                     elif sensorset == 'FIG':
                         signal_cycle = signal_cycle[:43]
-                    signal_cycle = signal_cycle[:-3] # Cut edges with noise
+                    elif sensorset == 'FIS':
+                        signal_cycle = signal_cycle[10:]
+                    signal_cycle = signal_cycle[:-5] # Cut edges with noise
                     dims = signal_cycle.shape[0]*signal_cycle.shape[1]
                     flatcycle = signal_cycle.reshape(dims) # flat out cycle data spanning the whole row
                     transformedsignals = np.log(1/flatcycle) # log transform ...
